@@ -181,6 +181,249 @@ flowchart TD
 
 ---
 
+## 📊 Database Design
+
+### Entity Relationship (ER) Diagram
+
+```mermaid
+erDiagram
+    USER ||--o{ STOCK_MOVEMENT : performs
+    PRODUCT ||--o{ STOCK_MOVEMENT : tracks
+    CATEGORY ||--o{ PRODUCT : contains
+
+    USER {
+        ObjectId _id PK
+        String name
+        String email UK
+        String password
+        String role
+        Boolean isActive
+        Date createdAt
+        Date updatedAt
+    }
+
+    CATEGORY {
+        ObjectId _id PK
+        String name UK
+        String description
+        Boolean isActive
+        Date createdAt
+        Date updatedAt
+    }
+
+    PRODUCT {
+        ObjectId _id PK
+        String name
+        String sku UK
+        String description
+        ObjectId category FK
+        Number quantity
+        Number lowStockThreshold
+        Number unitPrice
+        String location
+        String barcode
+        Boolean isActive
+        Date createdAt
+        Date updatedAt
+    }
+
+    STOCK_MOVEMENT {
+        ObjectId _id PK
+        ObjectId product FK
+        String type
+        Number quantity
+        Number previousQuantity
+        Number newQuantity
+        String reason
+        String notes
+        ObjectId performedBy FK
+        Date createdAt
+        Date updatedAt
+    }
+```
+
+### Context Diagram (Level 0 DFD)
+
+```mermaid
+flowchart TB
+    subgraph External["External Entities"]
+        Admin[("👑 Administrator")]
+        Staff[("👤 Staff Member")]
+        Guest[("🔓 Guest User")]
+    end
+
+    subgraph System["TrackVerse Inventory Management System"]
+        Core[("Core System
+        • Authentication
+        • Inventory Management
+        • Stock Tracking
+        • Analytics & Reporting")]
+    end
+
+    subgraph DataStore["Data Storage"]
+        DB[("🗄️ MongoDB Database")]
+    end
+
+    Admin -->|Login Credentials| Core
+    Admin -->|Product CRUD| Core
+    Admin -->|Category Management| Core
+    Admin -->|Stock Adjustments| Core
+
+    Staff -->|Login Credentials| Core
+    Staff -->|View Inventory| Core
+    Staff -->|Stock Adjustments| Core
+
+    Guest -->|Registration Data| Core
+
+    Core -->|Authentication Token| Admin
+    Core -->|Authentication Token| Staff
+    Core -->|Account Created| Guest
+    Core -->|Dashboard Analytics| Admin
+    Core -->|Dashboard Analytics| Staff
+    Core -->|Inventory Reports| Admin
+    Core -->|Inventory Reports| Staff
+    Core -->|Stock Alerts| Admin
+    Core -->|Stock Alerts| Staff
+
+    Core <-->|Read/Write Data| DB
+
+    style Core fill:#8B5CF6,stroke:#EC4899,stroke-width:3px,color:#fff
+    style DB fill:#10B981,stroke:#059669,stroke-width:2px,color:#fff
+```
+
+### Level 1 Data Flow Diagram
+
+```mermaid
+flowchart TB
+    subgraph Users["👥 Users"]
+        Admin[("Administrator")]
+        Staff[("Staff Member")]
+        Guest[("Guest")]
+    end
+
+    subgraph AuthProcess["1.0 Authentication Process"]
+        Login["1.1 User Login"]
+        Register["1.2 User Registration"]
+        Verify["1.3 JWT Verification"]
+    end
+
+    subgraph InventoryProcess["2.0 Inventory Management"]
+        ViewProducts["2.1 View Products"]
+        ManageProducts["2.2 Manage Products
+        (Admin Only)"]
+        SearchFilter["2.3 Search & Filter"]
+    end
+
+    subgraph CategoryProcess["3.0 Category Management"]
+        ViewCategories["3.1 View Categories"]
+        ManageCategories["3.2 Manage Categories
+        (Admin Only)"]
+    end
+
+    subgraph StockProcess["4.0 Stock Management"]
+        StockAdjust["4.1 Stock Adjustments"]
+        TrackMovements["4.2 Track Movements"]
+        LowStockAlert["4.3 Low Stock Alerts"]
+    end
+
+    subgraph DashboardProcess["5.0 Analytics & Dashboard"]
+        CalcStats["5.1 Calculate Statistics"]
+        GenReports["5.2 Generate Reports"]
+        RecentActivity["5.3 Recent Activities"]
+    end
+
+    subgraph DataStores["💾 Data Stores"]
+        D1[("D1: Users")]
+        D2[("D2: Products")]
+        D3[("D3: Categories")]
+        D4[("D4: Stock Movements")]
+    end
+
+    %% User to Auth
+    Guest -->|Registration Form| Register
+    Admin -->|Login Credentials| Login
+    Staff -->|Login Credentials| Login
+
+    Register -->|User Data| D1
+    Login -->|Credentials| D1
+    D1 -->|User Record| Login
+    Login -->|JWT Token| Admin
+    Login -->|JWT Token| Staff
+    Register -->|JWT Token| Guest
+
+    %% Inventory Management
+    Admin -->|Product Request| ViewProducts
+    Staff -->|Product Request| ViewProducts
+    Admin -->|CRUD Operations| ManageProducts
+    Admin -->|Search Query| SearchFilter
+    Staff -->|Search Query| SearchFilter
+
+    ViewProducts -->|Query| D2
+    D2 -->|Product List| ViewProducts
+    ViewProducts -->|Product Data| Admin
+    ViewProducts -->|Product Data| Staff
+
+    ManageProducts -->|Create/Update/Delete| D2
+    SearchFilter -->|Filter Query| D2
+    D2 -->|Filtered Results| SearchFilter
+    SearchFilter -->|Search Results| Admin
+    SearchFilter -->|Search Results| Staff
+
+    %% Category Management
+    Admin -->|Category Request| ViewCategories
+    Staff -->|Category Request| ViewCategories
+    Admin -->|Category CRUD| ManageCategories
+
+    ViewCategories -->|Query| D3
+    D3 -->|Category List| ViewCategories
+    ViewCategories -->|Categories| Admin
+    ViewCategories -->|Categories| Staff
+
+    ManageCategories -->|Create/Update/Delete| D3
+    D2 -.->|Category Reference| D3
+
+    %% Stock Management
+    Admin -->|Adjustment Request| StockAdjust
+    Staff -->|Adjustment Request| StockAdjust
+
+    StockAdjust -->|Update Quantity| D2
+    StockAdjust -->|Movement Record| D4
+    D2 -->|Current Stock| StockAdjust
+    D4 -.->|Audit Trail| TrackMovements
+
+    TrackMovements -->|Movement Data| Admin
+    TrackMovements -->|Movement Data| Staff
+
+    D2 -->|Stock Levels| LowStockAlert
+    LowStockAlert -->|Alerts| Admin
+    LowStockAlert -->|Alerts| Staff
+
+    %% Dashboard & Analytics
+    Admin -->|Dashboard Request| CalcStats
+    Staff -->|Dashboard Request| CalcStats
+
+    D2 -->|Product Data| CalcStats
+    D3 -->|Category Data| CalcStats
+    D4 -->|Movement Data| CalcStats
+    D1 -->|User Data| CalcStats
+
+    CalcStats -->|Statistics| GenReports
+    GenReports -->|Reports| Admin
+    GenReports -->|Reports| Staff
+
+    D4 -->|Recent Records| RecentActivity
+    RecentActivity -->|Activity Log| Admin
+    RecentActivity -->|Activity Log| Staff
+
+    style AuthProcess fill:#3B82F6,stroke:#2563EB,stroke-width:2px,color:#fff
+    style InventoryProcess fill:#8B5CF6,stroke:#7C3AED,stroke-width:2px,color:#fff
+    style CategoryProcess fill:#EC4899,stroke:#DB2777,stroke-width:2px,color:#fff
+    style StockProcess fill:#F59E0B,stroke:#D97706,stroke-width:2px,color:#fff
+    style DashboardProcess fill:#10B981,stroke:#059669,stroke-width:2px,color:#fff
+```
+
+---
+
 ## 📁 Project Structure
 
 ```
