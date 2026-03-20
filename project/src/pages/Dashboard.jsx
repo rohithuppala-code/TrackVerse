@@ -11,21 +11,31 @@ import {
   TrendingDown,
   Eye,
   Layers,
-  ArrowUpRight
+  ArrowUpRight,
+  BarChart3,
+  PieChart as PieChartIcon
 } from 'lucide-react';
-import { GlassCard, AnimatedCard, SkeletonStatCard } from '../components/ui';
+import { GlassCard, AnimatedCard, SkeletonStatCard, AnimatedCounter } from '../components/ui';
+import { GlassLineChart, GlassBarChart, GlassPieChart } from '../components/charts';
 
 const Dashboard = () => {
   const {
     dashboardStats,
     fetchDashboardStats,
     fetchLowStockProducts,
-    fetchRecentActivities
+    fetchRecentActivities,
+    fetchStockTrends,
+    fetchCategoryDistribution,
+    fetchMovementSummary
   } = useInventory();
 
   const [lowStockProducts, setLowStockProducts] = useState([]);
   const [recentActivities, setRecentActivities] = useState([]);
+  const [stockTrends, setStockTrends] = useState([]);
+  const [categoryDistribution, setCategoryDistribution] = useState([]);
+  const [movementSummary, setMovementSummary] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [chartsLoading, setChartsLoading] = useState(true);
 
   const navigate = useNavigate();
 
@@ -45,7 +55,26 @@ const Dashboard = () => {
       }
     };
 
+    const loadChartData = async () => {
+      try {
+        const [trends, distribution, summary] = await Promise.all([
+          fetchStockTrends(14),
+          fetchCategoryDistribution(),
+          fetchMovementSummary(7)
+        ]);
+
+        setStockTrends(trends || []);
+        setCategoryDistribution(distribution || []);
+        setMovementSummary(summary || []);
+      } catch (error) {
+        console.error('Error loading chart data:', error);
+      } finally {
+        setChartsLoading(false);
+      }
+    };
+
     loadDashboardData();
+    loadChartData();
   }, []);
 
   useEffect(() => {
@@ -71,35 +100,40 @@ const Dashboard = () => {
       value: dashboardStats.totalProducts || 0,
       icon: Package,
       gradient: 'from-blue-500 to-cyan-500',
-      glow: 'shadow-neon-blue'
+      glow: 'shadow-neon-blue',
+      isNumeric: true
     },
     {
       name: 'Categories',
       value: dashboardStats.totalCategories || 0,
       icon: Layers,
       gradient: 'from-emerald-500 to-green-500',
-      glow: 'shadow-[0_0_20px_rgba(16,185,129,0.5)]'
+      glow: 'shadow-[0_0_20px_rgba(16,185,129,0.5)]',
+      isNumeric: true
     },
     {
       name: 'Low Stock Items',
       value: dashboardStats.lowStockProducts || 0,
       icon: AlertTriangle,
       gradient: 'from-red-500 to-rose-500',
-      glow: 'shadow-[0_0_20px_rgba(239,68,68,0.5)]'
+      glow: 'shadow-[0_0_20px_rgba(239,68,68,0.5)]',
+      isNumeric: true
     },
     {
       name: 'Total Value',
-      value: `$${(dashboardStats.totalValue || 0).toLocaleString()}`,
+      value: dashboardStats.totalValue || 0,
       icon: DollarSign,
       gradient: 'from-amber-500 to-yellow-500',
-      glow: 'shadow-[0_0_20px_rgba(245,158,11,0.5)]'
+      glow: 'shadow-[0_0_20px_rgba(245,158,11,0.5)]',
+      isCurrency: true
     },
     {
       name: 'Recent Movements',
       value: dashboardStats.recentMovements || 0,
       icon: Activity,
       gradient: 'from-purple-500 to-pink-500',
-      glow: 'shadow-neon-purple'
+      glow: 'shadow-neon-purple',
+      isNumeric: true
     }
   ];
 
@@ -160,6 +194,7 @@ const Dashboard = () => {
         </GlassCard>
       </motion.div>
 
+      {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
@@ -180,14 +215,21 @@ const Dashboard = () => {
                   </div>
                   <ArrowUpRight className="h-4 w-4 text-white/40" />
                 </div>
-                <motion.p
-                  className="text-2xl md:text-3xl font-bold text-white mb-1"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: index * 0.1 + 0.3, type: 'spring' }}
-                >
-                  {stat.value}
-                </motion.p>
+                <div className="text-2xl md:text-3xl font-bold text-white mb-1">
+                  {stat.isCurrency ? (
+                    <AnimatedCounter
+                      value={stat.value}
+                      prefix="$"
+                      decimals={0}
+                      duration={1.5}
+                    />
+                  ) : (
+                    <AnimatedCounter
+                      value={stat.value}
+                      duration={1.5}
+                    />
+                  )}
+                </div>
                 <p className="text-sm text-white/60">{stat.name}</p>
               </AnimatedCard>
             </motion.div>
@@ -195,11 +237,125 @@ const Dashboard = () => {
         })}
       </div>
 
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Stock Trends Chart */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <GlassCard className="p-0 overflow-hidden" hoverable={false}>
+            <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Stock Movement Trends</h2>
+                <p className="text-sm text-white/50">Last 14 days</p>
+              </div>
+              <div className="p-2 bg-purple-500/20 rounded-lg">
+                <BarChart3 className="h-4 w-4 text-purple-400" />
+              </div>
+            </div>
+            <div className="p-4">
+              {chartsLoading ? (
+                <div className="h-64 flex items-center justify-center">
+                  <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : stockTrends.length > 0 ? (
+                <GlassLineChart
+                  data={stockTrends}
+                  lines={[
+                    { dataKey: 'stockIn', color: '#10B981', name: 'Stock In' },
+                    { dataKey: 'stockOut', color: '#EF4444', name: 'Stock Out' }
+                  ]}
+                  xAxisKey="date"
+                  height={250}
+                />
+              ) : (
+                <div className="h-64 flex items-center justify-center text-white/50">
+                  No movement data available
+                </div>
+              )}
+            </div>
+          </GlassCard>
+        </motion.div>
+
+        {/* Category Distribution Chart */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+        >
+          <GlassCard className="p-0 overflow-hidden" hoverable={false}>
+            <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Inventory by Category</h2>
+                <p className="text-sm text-white/50">Product distribution</p>
+              </div>
+              <div className="p-2 bg-pink-500/20 rounded-lg">
+                <PieChartIcon className="h-4 w-4 text-pink-400" />
+              </div>
+            </div>
+            <div className="p-4">
+              {chartsLoading ? (
+                <div className="h-64 flex items-center justify-center">
+                  <div className="w-8 h-8 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : categoryDistribution.length > 0 ? (
+                <GlassPieChart
+                  data={categoryDistribution}
+                  dataKey="productCount"
+                  nameKey="name"
+                  height={250}
+                  innerRadius={50}
+                />
+              ) : (
+                <div className="h-64 flex items-center justify-center text-white/50">
+                  No category data available
+                </div>
+              )}
+            </div>
+          </GlassCard>
+        </motion.div>
+      </div>
+
+      {/* Movement Summary Bar Chart */}
+      {movementSummary.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="mb-8"
+        >
+          <GlassCard className="p-0 overflow-hidden" hoverable={false}>
+            <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Movement Summary</h2>
+                <p className="text-sm text-white/50">Last 7 days by type</p>
+              </div>
+              <div className="p-2 bg-blue-500/20 rounded-lg">
+                <Activity className="h-4 w-4 text-blue-400" />
+              </div>
+            </div>
+            <div className="p-4">
+              <GlassBarChart
+                data={movementSummary}
+                bars={[{ dataKey: 'value', name: 'Movements' }]}
+                xAxisKey="name"
+                height={200}
+                colorful
+                showLegend={false}
+              />
+            </div>
+          </GlassCard>
+        </motion.div>
+      )}
+
+      {/* Low Stock & Recent Activities */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.5 }}
+          transition={{ delay: 0.6 }}
         >
           <GlassCard className="p-0 overflow-hidden" hoverable={false}>
             <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
@@ -225,7 +381,7 @@ const Dashboard = () => {
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.05 }}
-                        className="flex items-center justify-between p-3 bg-red-500/10 rounded-xl border border-red-500/20"
+                        className="flex items-center justify-between p-3 bg-red-500/10 rounded-xl border border-red-500/20 hover:bg-red-500/15 transition-colors"
                       >
                         <div>
                           <p className="font-medium text-white text-sm">{product.name}</p>
@@ -259,7 +415,7 @@ const Dashboard = () => {
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.6 }}
+          transition={{ delay: 0.7 }}
         >
           <GlassCard className="p-0 overflow-hidden" hoverable={false}>
             <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">

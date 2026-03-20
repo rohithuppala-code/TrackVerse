@@ -185,6 +185,37 @@ export const InventoryProvider = ({ children }) => {
     }
   };
 
+  // Chart Data
+  const fetchStockTrends = async (days = 30) => {
+    try {
+      const res = await axios.get(`${API_BASE}/dashboard/stock-trends?days=${days}`);
+      return res.data;
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: error.response?.data?.message });
+      return [];
+    }
+  };
+
+  const fetchCategoryDistribution = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/dashboard/category-distribution`);
+      return res.data;
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: error.response?.data?.message });
+      return [];
+    }
+  };
+
+  const fetchMovementSummary = async (days = 7) => {
+    try {
+      const res = await axios.get(`${API_BASE}/dashboard/movement-summary?days=${days}`);
+      return res.data;
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: error.response?.data?.message });
+      return [];
+    }
+  };
+
   return (
     <InventoryContext.Provider
       value={{
@@ -201,7 +232,10 @@ export const InventoryProvider = ({ children }) => {
         adjustStock,
         fetchDashboardStats,
         fetchLowStockProducts,
-        fetchRecentActivities
+        fetchRecentActivities,
+        fetchStockTrends,
+        fetchCategoryDistribution,
+        fetchMovementSummary
       }}
     >
       {children}
