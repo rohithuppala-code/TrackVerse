@@ -40,13 +40,13 @@ const Categories = () => {
 
   useEffect(() => {
     fetchCategories();
-    fetchProducts();
+    fetchProducts({ limit: 'all' });
   }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
       fetchCategories();
-      fetchProducts();
+      fetchProducts({ limit: 'all' });
     }, 10000);
     return () => clearInterval(interval);
   }, [fetchCategories, fetchProducts]);
@@ -57,20 +57,20 @@ const Categories = () => {
     if (editingCategory) {
       const result = await updateCategory(editingCategory._id, formData);
       if (result.success) {
+        toast.success('Category updated successfully!');
         setShowModal(false);
         setEditingCategory(null);
         resetForm();
-        toast.success('Category updated successfully!');
       } else {
         toast.error(result.message);
       }
     } else {
       const result = await createCategory(formData);
       if (result.success) {
+        toast.success('Category created successfully!');
         setShowModal(false);
         setEditingCategory(null);
         resetForm();
-        toast.success('Category created successfully!');
       } else {
         toast.error(result.message);
       }
@@ -112,11 +112,16 @@ const Categories = () => {
 
   // Calculate stats for each category
   const getCategoryStats = (categoryId) => {
-    const categoryProducts = products.filter(p => p.category?._id === categoryId);
+    const categoryProducts = products.filter((product) => {
+      const productCategoryId = product.category?._id || product.category;
+      return String(productCategoryId) === String(categoryId);
+    });
     const productCount = categoryProducts.length;
     const totalStock = categoryProducts.reduce((sum, p) => sum + (p.quantity || 0), 0);
     const totalValue = categoryProducts.reduce((sum, p) => sum + ((p.quantity || 0) * (p.unitPrice || 0)), 0);
-    const lowStockCount = categoryProducts.filter(p => p.isLowStock).length;
+    const lowStockCount = categoryProducts.filter(
+      (product) => (product.quantity || 0) <= (product.lowStockThreshold || 0)
+    ).length;
     return { productCount, totalStock, totalValue, lowStockCount };
   };
 

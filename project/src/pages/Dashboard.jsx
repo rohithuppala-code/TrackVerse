@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useInventory } from '../context/InventoryContext';
-import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Package,
@@ -19,6 +20,10 @@ import { GlassCard, AnimatedCard, SkeletonStatCard, AnimatedCounter } from '../c
 import { GlassLineChart, GlassBarChart, GlassPieChart } from '../components/charts';
 
 const Dashboard = () => {
+  const location = useLocation();
+  const { user } = useAuth();
+  const isLoadingRef = useRef(false);
+  const mountedRef = useRef(false);
   const {
     dashboardStats,
     fetchDashboardStats,
@@ -36,53 +41,108 @@ const Dashboard = () => {
   const [movementSummary, setMovementSummary] = useState([]);
   const [loading, setLoading] = useState(true);
   const [chartsLoading, setChartsLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState(0);
 
   const navigate = useNavigate();
 
+  const loadAllData = async () => {
+    // Prevent multiple simultaneous loads
+    if (isLoadingRef.current) {
+      console.log('Already loading, skipping...');
+      return;
+    }
+
+    isLoadingRef.current = true;
+    setLoading(true);
+    setChartsLoading(true);
+    
+    try {
+      console.log('Loading dashboard data...');
+      
+      // Load dashboard stats and basic data
+      await fetchDashboardStats();
+      const [lowStock, activities] = await Promise.all([
+        fetchLowStockProducts(),
+        fetchRecentActivities()
+      ]);
+
+      setLowStockProducts(Array.isArray(lowStock) ? lowStock : []);
+      setRecentActivities(Array.isArray(activities) ? activities : []);
+      setLoading(false);
+
+      // Load chart data
+      const [trends, distribution, summary] = await Promise.all([
+        fetchStockTrends(14),
+        fetchCategoryDistribution(),
+        fetchMovementSummary(7)
+      ]);
+
+      setStockTrends(Array.isArray(trends) ? trends : []);
+      setCategoryDistribution(Array.isArray(distribution) ? distribution : []);
+      setMovementSummary(Array.isArray(summary) ? summary : []);
+      setChartsLoading(false);
+      setLastUpdate(Date.now());
+      
+      console.log('Dashboard data loaded successfully', {
+        lowStock: lowStock?.length || 0,
+        activities: activities?.length || 0,
+        trends: trends?.length || 0,
+        distribution: distribution?.length || 0,
+        summary: summary?.length || 0
+      });
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      // Set empty arrays on error to prevent "undefined" issues
+      setLowStockProducts([]);
+      setRecentActivities([]);
+      setStockTrends([]);
+      setCategoryDistribution([]);
+      setMovementSummary([]);
+      setLoading(false);
+      setChartsLoading(false);
+    } finally {
+      isLoadingRef.current = false;
+    }
+  };
+
+  // Load data on mount
   useEffect(() => {
-    const loadDashboardData = async () => {
-      try {
-        await fetchDashboardStats();
-        const lowStock = await fetchLowStockProducts();
-        const activities = await fetchRecentActivities();
-
-        setLowStockProducts(lowStock || []);
-        setRecentActivities(activities || []);
-      } catch (error) {
-        console.error('Error loading dashboard data:', error);
-      } finally {
-        setLoading(false);
-      }
+    mountedRef.current = true;
+    loadAllData();
+    
+    return () => {
+      mountedRef.current = false;
     };
-
-    const loadChartData = async () => {
-      try {
-        const [trends, distribution, summary] = await Promise.all([
-          fetchStockTrends(14),
-          fetchCategoryDistribution(),
-          fetchMovementSummary(7)
-        ]);
-
-        setStockTrends(trends || []);
-        setCategoryDistribution(distribution || []);
-        setMovementSummary(summary || []);
-      } catch (error) {
-        console.error('Error loading chart data:', error);
-      } finally {
-        setChartsLoading(false);
-      }
-    };
-
-    loadDashboardData();
-    loadChartData();
   }, []);
+
+  // Force reload when user changes (after login/logout)
+  useEffect(() => {
+    if (user && mountedRef.current) {
+      console.log('User changed, reloading dashboard');
+      loadAllData();
+    }
+  }, [user?._id]);
+
+  // Reload data when navigating back to dashboard (but not on every render)
+  useEffect(() => {
+    // Only reload if we're on dashboard and it's been more than 3 seconds since last update
+    if (location.pathname === '/dashboard' && lastUpdate > 0 && mountedRef.current) {
+      const timeSinceUpdate = Date.now() - lastUpdate;
+      if (timeSinceUpdate > 3000 && !isLoadingRef.current) {
+        console.log('Reloading dashboard after navigation');
+        loadAllData();
+      }
+    }
+  }, [location.key]); // Use location.key instead of pathname to detect actual navigation
 
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        await fetchDashboardStats();
-        const lowStock = await fetchLowStockProducts();
-        const activities = await fetchRecentActivities();
+        const [_, lowStock, activities] = await Promise.all([
+          fetchDashboardStats(),
+          fetchLowStockProducts(),
+          fetchRecentActivities()
+        ]);
 
         setLowStockProducts(lowStock || []);
         setRecentActivities(activities || []);
@@ -161,7 +221,8 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen p-4 md:p-6 lg:p-8">
+      <div className="w-full pb-8">
+        <div className="p-4 md:p-6 lg:p-8">
         <div className="mb-8">
           <GlassCard className="p-8" hoverable={false}>
             <div className="h-8 w-64 bg-white/10 rounded-lg animate-pulse" />
@@ -173,16 +234,18 @@ const Dashboard = () => {
             <SkeletonStatCard key={i} />
           ))}
         </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-6 lg:p-8">
+    <div className="w-full pb-8">
+      <div className="p-4 md:p-6 lg:p-8 space-y-6">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
+        className="mb-6"
       >
         <GlassCard className="p-6 md:p-8" hoverable={false}>
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
@@ -195,7 +258,7 @@ const Dashboard = () => {
       </motion.div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (
@@ -238,7 +301,7 @@ const Dashboard = () => {
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Stock Trends Chart */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -255,13 +318,14 @@ const Dashboard = () => {
                 <BarChart3 className="h-4 w-4 text-purple-400" />
               </div>
             </div>
-            <div className="p-4">
+            <div className="p-4" style={{ minHeight: '290px' }}>
               {chartsLoading ? (
                 <div className="h-64 flex items-center justify-center">
                   <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : stockTrends.length > 0 ? (
                 <GlassLineChart
+                  key={`line-${lastUpdate}`}
                   data={stockTrends}
                   lines={[
                     { dataKey: 'stockIn', color: '#10B981', name: 'Stock In' },
@@ -295,13 +359,14 @@ const Dashboard = () => {
                 <PieChartIcon className="h-4 w-4 text-pink-400" />
               </div>
             </div>
-            <div className="p-4">
+            <div className="p-4" style={{ minHeight: '290px' }}>
               {chartsLoading ? (
                 <div className="h-64 flex items-center justify-center">
                   <div className="w-8 h-8 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : categoryDistribution.length > 0 ? (
                 <GlassPieChart
+                  key={`pie-${lastUpdate}`}
                   data={categoryDistribution}
                   dataKey="productCount"
                   nameKey="name"
@@ -324,7 +389,7 @@ const Dashboard = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="mb-8"
+          className="mb-6"
         >
           <GlassCard className="p-0 overflow-hidden" hoverable={false}>
             <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
@@ -336,8 +401,9 @@ const Dashboard = () => {
                 <Activity className="h-4 w-4 text-blue-400" />
               </div>
             </div>
-            <div className="p-4">
+            <div className="p-4" style={{ minHeight: '240px' }}>
               <GlassBarChart
+                key={`bar-${lastUpdate}`}
                 data={movementSummary}
                 bars={[{ dataKey: 'value', name: 'Movements' }]}
                 xAxisKey="name"
@@ -484,6 +550,7 @@ const Dashboard = () => {
             </div>
           </GlassCard>
         </motion.div>
+      </div>
       </div>
     </div>
   );

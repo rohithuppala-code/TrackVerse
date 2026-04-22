@@ -5,6 +5,36 @@ import Category from '../models/Category.js';
 import { protect, adminOrStaff } from '../middleware/auth.js';
 
 const router = express.Router();
+const APP_TIME_ZONE = process.env.APP_TIMEZONE || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+const getDateKeyInTimeZone = (date, timeZone = APP_TIME_ZONE) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+
+  const values = parts.reduce((acc, part) => {
+    if (part.type !== 'literal') {
+      acc[part.type] = part.value;
+    }
+    return acc;
+  }, {});
+
+  return `${values.year}-${values.month}-${values.day}`;
+};
+
+const formatChartLabel = (dateKey, timeZone = APP_TIME_ZONE) => {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const safeDate = new Date(Date.UTC(year, month - 1, day, 12));
+
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    month: 'short',
+    day: 'numeric'
+  }).format(safeDate);
+};
 
 // @route   GET /api/dashboard/stats
 // @desc    Get dashboard statistics
@@ -102,7 +132,13 @@ router.get('/stock-trends', protect, adminOrStaff, async (req, res) => {
       {
         $group: {
           _id: {
-            date: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+            date: {
+              $dateToString: {
+                format: '%Y-%m-%d',
+                date: '$createdAt',
+                timezone: APP_TIME_ZONE
+              }
+            },
             type: '$type'
           },
           total: { $sum: '$quantity' }
@@ -118,11 +154,7 @@ router.get('/stock-trends', protect, adminOrStaff, async (req, res) => {
     for (let i = 0; i < days; i++) {
       const d = new Date(startDate);
       d.setDate(d.getDate() + i);
-      // Use local date components to create YYYY-MM-DD string
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
+      const dateStr = getDateKeyInTimeZone(d);
       dateMap[dateStr] = { date: dateStr, stockIn: 0, stockOut: 0, adjustment: 0 };
     }
 
@@ -142,7 +174,7 @@ router.get('/stock-trends', protect, adminOrStaff, async (req, res) => {
     // Convert to array and format dates for display
     const result = Object.values(dateMap).map(item => ({
       ...item,
-      date: new Date(item.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      date: formatChartLabel(item.date)
     }));
 
     res.json(result);

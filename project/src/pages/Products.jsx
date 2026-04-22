@@ -56,21 +56,21 @@ const Products = () => {
   });
 
   useEffect(() => {
-    fetchProducts();
+    fetchProducts({ limit: 'all' });
     fetchCategories();
   }, []);
 
   useEffect(() => {
     if (showModal) return;
     const interval = setInterval(() => {
-      fetchProducts();
+      fetchProducts({ limit: 'all' });
       fetchCategories();
     }, 10000);
     return () => clearInterval(interval);
   }, [fetchProducts, fetchCategories, showModal]);
 
   const handleSearch = () => {
-    const params = {};
+    const params = { limit: 'all' };
     if (searchTerm) params.search = searchTerm;
     if (filterCategory) params.category = filterCategory;
     if (showLowStock) params.lowStock = 'true';
@@ -89,11 +89,14 @@ const Products = () => {
       : await createProduct(formData);
 
     if (result.success) {
-      setShowModal(false);
-      setEditingProduct(null);
-      resetForm();
-      fetchProducts();
       toast.success(editingProduct ? 'Product updated successfully!' : 'Product created successfully!');
+      handleSearch();
+      // Small delay to show toast before closing modal
+      setTimeout(() => {
+        setShowModal(false);
+        setEditingProduct(null);
+        resetForm();
+      }, 500);
     } else {
       toast.error(result.message);
     }
@@ -119,8 +122,8 @@ const Products = () => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       const result = await deleteProduct(id);
       if (result.success) {
-        fetchProducts();
         toast.success('Product deleted successfully!');
+        await handleSearch();
       } else {
         toast.error(result.message);
       }

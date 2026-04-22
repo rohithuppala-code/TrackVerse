@@ -67,6 +67,8 @@ export const InventoryProvider = ({ children }) => {
     try {
       const res = await axios.post(`${API_BASE}/products`, productData);
       dispatch({ type: 'ADD_PRODUCT', payload: res.data });
+      // Refresh dashboard stats
+      fetchDashboardStats().catch(console.error);
       return { success: true, data: res.data };
     } catch (error) {
       return { success: false, message: error.response?.data?.message };
@@ -77,6 +79,8 @@ export const InventoryProvider = ({ children }) => {
     try {
       const res = await axios.put(`${API_BASE}/products/${id}`, productData);
       dispatch({ type: 'UPDATE_PRODUCT', payload: res.data });
+      // Refresh dashboard stats
+      fetchDashboardStats().catch(console.error);
       return { success: true, data: res.data };
     } catch (error) {
       return { success: false, message: error.response?.data?.message };
@@ -87,6 +91,8 @@ export const InventoryProvider = ({ children }) => {
     try {
       await axios.delete(`${API_BASE}/products/${id}`);
       dispatch({ type: 'DELETE_PRODUCT', payload: id });
+      // Refresh dashboard stats
+      fetchDashboardStats().catch(console.error);
       return { success: true };
     } catch (error) {
       return { success: false, message: error.response?.data?.message };
@@ -106,7 +112,8 @@ export const InventoryProvider = ({ children }) => {
   const createCategory = async (categoryData) => {
     try {
       const res = await axios.post(`${API_BASE}/categories`, categoryData);
-      await fetchCategories(); // Refresh list
+      fetchCategories().catch(console.error);
+      fetchDashboardStats().catch(console.error);
       return { success: true, data: res.data };
     } catch (error) {
       return { success: false, message: error.response?.data?.message };
@@ -116,7 +123,8 @@ export const InventoryProvider = ({ children }) => {
   const updateCategory = async (id, categoryData) => {
     try {
       const res = await axios.put(`${API_BASE}/categories/${id}`, categoryData);
-      await fetchCategories(); // Refresh list
+      fetchCategories().catch(console.error);
+      fetchProducts({ limit: 'all' }).catch(console.error);
       return { success: true, data: res.data };
     } catch (error) {
       return { success: false, message: error.response?.data?.message };
@@ -126,7 +134,9 @@ export const InventoryProvider = ({ children }) => {
   const deleteCategory = async (id) => {
     try {
       await axios.delete(`${API_BASE}/categories/${id}`);
-      await fetchCategories(); // Refresh list
+      fetchCategories().catch(console.error);
+      fetchProducts({ limit: 'all' }).catch(console.error);
+      fetchDashboardStats().catch(console.error);
       return { success: true };
     } catch (error) {
       return { success: false, message: error.response?.data?.message };
@@ -148,9 +158,10 @@ export const InventoryProvider = ({ children }) => {
   const adjustStock = async (adjustmentData) => {
     try {
       const res = await axios.post(`${API_BASE}/stock/adjust`, adjustmentData);
-      // Refresh products and movements
-      await fetchProducts();
-      await fetchStockMovements();
+      // Refresh all related data
+      fetchProducts({ limit: 'all' }).catch(console.error);
+      fetchStockMovements({ limit: 'all' }).catch(console.error);
+      fetchDashboardStats().catch(console.error);
       return { success: true, data: res.data };
     } catch (error) {
       return { success: false, message: error.response?.data?.message };
@@ -170,18 +181,22 @@ export const InventoryProvider = ({ children }) => {
   const fetchLowStockProducts = async () => {
     try {
       const res = await axios.get(`${API_BASE}/dashboard/low-stock`);
-      return res.data;
+      return Array.isArray(res.data) ? res.data : [];
     } catch (error) {
+      console.error('Error fetching low stock products:', error);
       dispatch({ type: 'SET_ERROR', payload: error.response?.data?.message });
+      return [];
     }
   };
 
   const fetchRecentActivities = async () => {
     try {
       const res = await axios.get(`${API_BASE}/dashboard/recent-activities`);
-      return res.data;
+      return Array.isArray(res.data) ? res.data : [];
     } catch (error) {
+      console.error('Error fetching recent activities:', error);
       dispatch({ type: 'SET_ERROR', payload: error.response?.data?.message });
+      return [];
     }
   };
 
@@ -189,8 +204,9 @@ export const InventoryProvider = ({ children }) => {
   const fetchStockTrends = async (days = 30) => {
     try {
       const res = await axios.get(`${API_BASE}/dashboard/stock-trends?days=${days}`);
-      return res.data;
+      return Array.isArray(res.data) ? res.data : [];
     } catch (error) {
+      console.error('Error fetching stock trends:', error);
       dispatch({ type: 'SET_ERROR', payload: error.response?.data?.message });
       return [];
     }
@@ -199,8 +215,9 @@ export const InventoryProvider = ({ children }) => {
   const fetchCategoryDistribution = async () => {
     try {
       const res = await axios.get(`${API_BASE}/dashboard/category-distribution`);
-      return res.data;
+      return Array.isArray(res.data) ? res.data : [];
     } catch (error) {
+      console.error('Error fetching category distribution:', error);
       dispatch({ type: 'SET_ERROR', payload: error.response?.data?.message });
       return [];
     }
@@ -209,8 +226,9 @@ export const InventoryProvider = ({ children }) => {
   const fetchMovementSummary = async (days = 7) => {
     try {
       const res = await axios.get(`${API_BASE}/dashboard/movement-summary?days=${days}`);
-      return res.data;
+      return Array.isArray(res.data) ? res.data : [];
     } catch (error) {
+      console.error('Error fetching movement summary:', error);
       dispatch({ type: 'SET_ERROR', payload: error.response?.data?.message });
       return [];
     }

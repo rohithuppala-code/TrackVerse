@@ -26,18 +26,26 @@ router.get('/', protect, adminOrStaff, async (req, res) => {
       query.$expr = { $lte: ['$quantity', '$lowStockThreshold'] };
     }
 
-    const products = await Product.find(query)
+    const queryBuilder = Product.find(query)
       .populate('category', 'name')
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
       .sort({ createdAt: -1 });
+
+    if (limit !== 'all') {
+      const numericLimit = Number(limit) || 10;
+      const numericPage = Number(page) || 1;
+      queryBuilder
+        .limit(numericLimit)
+        .skip((numericPage - 1) * numericLimit);
+    }
+
+    const products = await queryBuilder;
 
     const total = await Product.countDocuments(query);
 
     res.json({
       products,
-      totalPages: Math.ceil(total / limit),
-      currentPage: page,
+      totalPages: limit === 'all' ? 1 : Math.ceil(total / ((Number(limit) || 10))),
+      currentPage: Number(page) || 1,
       total
     });
   } catch (error) {

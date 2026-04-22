@@ -5,7 +5,7 @@ const AuthContext = createContext();
 
 const initialState = {
   user: null,
-  token: localStorage.getItem('token'),
+  token: null,
   isAuthenticated: false,
   loading: true
 };
@@ -64,17 +64,30 @@ export const AuthProvider = ({ children }) => {
   // Load user on app start
   useEffect(() => {
     const loadUser = async () => {
-      if (state.token) {
+      const token = localStorage.getItem('token');
+      
+      if (token) {
         try {
+          axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
           const res = await axios.get('/api/auth/me');
-          dispatch({
-            type: 'LOGIN_SUCCESS',
-            payload: {
-              user: res.data,
-              token: state.token
-            }
-          });
+          
+          // Only set authenticated if we get a valid response
+          if (res.data && res.data._id) {
+            dispatch({
+              type: 'LOGIN_SUCCESS',
+              payload: {
+                user: res.data,
+                token: token
+              }
+            });
+          } else {
+            throw new Error('Invalid user data');
+          }
         } catch (error) {
+          console.error('Token validation failed:', error.response?.status, error.message);
+          // Clear invalid token
+          localStorage.removeItem('token');
+          delete axios.defaults.headers.common['Authorization'];
           dispatch({ type: 'AUTH_ERROR' });
         }
       } else {

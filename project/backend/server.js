@@ -13,9 +13,6 @@ import errorHandler from './middleware/errorHandler.js';
 
 dotenv.config();
 
-// Connect to MongoDB
-connectDB();
-
 const app = express();
 
 // Security middleware
@@ -55,8 +52,24 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({ message: 'Server is running!' });
 });
 
-const PORT = 4000;
+const PORT = process.env.PORT || 4000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+const startServer = async () => {
+  try {
+    await connectDB();
+
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      cause: error.cause?.message || null
+    });
+    process.exit(1);
+  }
+};
+
+startServer();

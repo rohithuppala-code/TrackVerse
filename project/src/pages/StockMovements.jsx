@@ -37,6 +37,7 @@ const StockMovements = () => {
   const [stockTrends, setStockTrends] = useState([]);
   const [movementSummary, setMovementSummary] = useState([]);
   const [chartsLoading, setChartsLoading] = useState(true);
+  const [lastChartUpdate, setLastChartUpdate] = useState(Date.now());
   const [formData, setFormData] = useState({
     productId: '',
     type: 'stock_in',
@@ -44,12 +45,6 @@ const StockMovements = () => {
     reason: '',
     notes: ''
   });
-
-  useEffect(() => {
-    fetchProducts();
-    fetchStockMovements();
-    loadChartData();
-  }, []);
 
   const loadChartData = async () => {
     setChartsLoading(true);
@@ -60,17 +55,27 @@ const StockMovements = () => {
       ]);
       setStockTrends(trends || []);
       setMovementSummary(summary || []);
+      setLastChartUpdate(Date.now());
     } catch (error) {
       console.error('Error loading chart data:', error);
+      setStockTrends([]);
+      setMovementSummary([]);
     } finally {
       setChartsLoading(false);
     }
   };
 
   useEffect(() => {
+    fetchProducts({ limit: 'all' });
+    fetchStockMovements({ limit: 'all' });
+    loadChartData();
+  }, []);
+
+  useEffect(() => {
     const interval = setInterval(() => {
-      fetchProducts();
-      fetchStockMovements();
+      fetchProducts({ limit: 'all' });
+      fetchStockMovements({ limit: 'all' });
+      loadChartData();
     }, 10000);
 
     return () => clearInterval(interval);
@@ -92,12 +97,10 @@ const StockMovements = () => {
     const result = await adjustStock(formData);
 
     if (result.success) {
+      toast.success('Stock adjusted successfully!');
+      loadChartData().catch(console.error);
       setShowModal(false);
       resetForm();
-      toast.success('Stock adjusted successfully!');
-      fetchStockMovements();
-      fetchProducts();
-      loadChartData();
     } else {
       toast.error(result.message);
     }
@@ -184,7 +187,8 @@ const StockMovements = () => {
   ];
 
   return (
-    <div className="min-h-screen p-4 md:p-6 lg:p-8">
+    <div className="w-full pb-8">
+      <div className="p-4 md:p-6 lg:p-8 space-y-6">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -231,17 +235,19 @@ const StockMovements = () => {
               <BarChart3 className="h-4 w-4 text-purple-400" />
             </div>
           </div>
-          <div className="p-4">
+          <div className="p-4" style={{ minHeight: '240px' }}>
             {chartsLoading ? (
               <div className="h-48 flex items-center justify-center">
                 <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : stockTrends.length > 0 ? (
               <GlassBarChart
+                key={`bar-trends-${lastChartUpdate}`}
                 data={stockTrends}
                 bars={[
                   { dataKey: 'stockIn', color: '#10B981', name: 'Stock In' },
-                  { dataKey: 'stockOut', color: '#EF4444', name: 'Stock Out' }
+                  { dataKey: 'stockOut', color: '#EF4444', name: 'Stock Out' },
+                  { dataKey: 'adjustment', color: '#3B82F6', name: 'Adjustment' }
                 ]}
                 xAxisKey="date"
                 height={200}
@@ -264,13 +270,14 @@ const StockMovements = () => {
               <Activity className="h-4 w-4 text-pink-400" />
             </div>
           </div>
-          <div className="p-4">
+          <div className="p-4" style={{ minHeight: '240px' }}>
             {chartsLoading ? (
               <div className="h-48 flex items-center justify-center">
                 <div className="w-8 h-8 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : movementSummary.length > 0 ? (
               <GlassPieChart
+                key={`pie-summary-${lastChartUpdate}`}
                 data={movementSummary}
                 dataKey="value"
                 nameKey="name"
@@ -687,6 +694,7 @@ const StockMovements = () => {
           </div>
         </form>
       </GlassModal>
+      </div>
     </div>
   );
 };

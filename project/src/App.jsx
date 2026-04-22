@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import { InventoryProvider } from './context/InventoryContext';
@@ -20,6 +20,24 @@ function GradientFallback() {
     <div className="fixed inset-0 -z-10 bg-gradient-to-br from-slate-900 via-purple-900/50 to-slate-900" />
   );
 }
+
+const MainLayout = () => {
+  return (
+    <ProtectedRoute>
+      <div className="flex flex-col min-h-screen w-full relative">
+        <Suspense fallback={<GradientFallback />}>
+          <Background3D />
+        </Suspense>
+        <div className="relative z-10 flex flex-col min-h-screen w-full">
+          <Navbar />
+          <main className="flex-1 w-full">
+            <Outlet />
+          </main>
+        </div>
+      </div>
+    </ProtectedRoute>
+  );
+};
 
 function App() {
   return (
@@ -54,33 +72,16 @@ function App() {
           />
           <div className="min-h-screen w-full bg-gradient-to-br from-slate-900 via-purple-900/30 to-slate-900">
             <Routes>
+              <Route path="/" element={<Navigate to="/login" replace />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
-              <Route
-                path="/*"
-                element={
-                  <ProtectedRoute>
-                    <div className="flex flex-col min-h-screen w-full relative">
-                      <Suspense fallback={<GradientFallback />}>
-                        <Background3D />
-                      </Suspense>
-
-                      <div className="relative z-10 flex flex-col min-h-screen w-full">
-                        <Navbar />
-                        <main className="flex-1 w-full">
-                          <Routes>
-                            <Route path="/" element={<Navigate to="/dashboard" />} />
-                            <Route path="/dashboard" element={<Dashboard />} />
-                            <Route path="/products" element={<Products />} />
-                            <Route path="/categories" element={<Categories />} />
-                            <Route path="/stock-movements" element={<StockMovements />} />
-                          </Routes>
-                        </main>
-                      </div>
-                    </div>
-                  </ProtectedRoute>
-                }
-              />
+              <Route element={<MainLayout />}>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/products" element={<Products />} />
+                <Route path="/categories" element={<Categories />} />
+                <Route path="/stock-movements" element={<StockMovements />} />
+              </Route>
+              <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
           </div>
         </Router>

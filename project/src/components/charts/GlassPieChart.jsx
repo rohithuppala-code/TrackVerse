@@ -66,6 +66,7 @@ export default function GlassPieChart({
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.5 }}
       className="w-full"
+      style={{ minHeight: height }}
     >
       <ResponsiveContainer width="100%" height={height}>
         <PieChart>

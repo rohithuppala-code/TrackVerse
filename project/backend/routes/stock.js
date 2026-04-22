@@ -77,19 +77,27 @@ router.get('/movements', protect, adminOrStaff, async (req, res) => {
       query.product = productId;
     }
 
-    const movements = await StockMovement.find(query)
+    const queryBuilder = StockMovement.find(query)
       .populate('product', 'name sku')
       .populate('performedBy', 'name')
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
       .sort({ createdAt: -1 });
+
+    if (limit !== 'all') {
+      const numericLimit = Number(limit) || 10;
+      const numericPage = Number(page) || 1;
+      queryBuilder
+        .limit(numericLimit)
+        .skip((numericPage - 1) * numericLimit);
+    }
+
+    const movements = await queryBuilder;
 
     const total = await StockMovement.countDocuments(query);
 
     res.json({
       movements,
-      totalPages: Math.ceil(total / limit),
-      currentPage: page,
+      totalPages: limit === 'all' ? 1 : Math.ceil(total / (Number(limit) || 10)),
+      currentPage: Number(page) || 1,
       total
     });
   } catch (error) {
